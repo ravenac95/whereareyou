@@ -10,6 +10,7 @@ pygithub = '*'
 netifaces = '*'
 click = '*'
 cryptography = '*'
+requests = '*'
 
 [requires]
 python_version = "3.6"

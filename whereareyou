@@ -2,7 +2,13 @@
 """
 A simple script to locate a specific server on your local network. So
 your lazy self doesn't need to connect to it manually.
+
+It reports the global and local connection. The tool was created so I could
+bring around a machine that doesn't have a screen or keyboard but can be
+plugged in and out of a few known networks without setup. This allows
+me to securely discover what ip that machine is so I can ssh into it.
 """
+
 import os
 import sys
 import json
@@ -10,6 +16,7 @@ import click
 import base64
 import netifaces
 import getpass
+import requests
 from github import Github, InputFileContent
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet
@@ -130,8 +137,16 @@ def announce(config_path, gh_token, gh_gist_id, gh_gist_file_name, public_key_pa
 
     ips_str = "\n".join(ips)
 
+    try:
+        current_global_ip = requests.get("https://api.ipify.org").text
+    except:
+        print("Problems getting global ip")
+        current_global_ip = ""
+
+    ips_report = "global:\n%s\n\nlan:\n%s" % (current_global_ip, ips_str)
+
     # Compare the cache
-    if matches_cache(cache_file, ips_str):
+    if matches_cache(cache_file, ips_report):
         print("Nothing has changed since the last update. Do nothing.")
         sys.exit(0)
 
@@ -144,7 +159,7 @@ def announce(config_path, gh_token, gh_gist_id, gh_gist_file_name, public_key_pa
         backend=default_backend(),
     )
 
-    file_content = encrypt(ips_str, public_key)
+    file_content = encrypt(ips_report, public_key)
 
     gist.edit(files={
         gh_gist_file_name: InputFileContent(content=file_content),
@@ -152,8 +167,10 @@ def announce(config_path, gh_token, gh_gist_id, gh_gist_file_name, public_key_pa
 
     # Save cache
     cache = open(cache_file, 'w')
-    cache.write(ips_str)
+    cache.write(ips_report)
     cache.close()
+
+    print("Successfully announced location on github")
 
 
 @cli.command()
