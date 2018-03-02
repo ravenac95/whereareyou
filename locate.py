@@ -73,27 +73,42 @@ def cli():
 
 
 @cli.command()
+@click.option('--config-path', default='/etc/whereareyou/config.json', help='Path to config file')
 @click.option('--gh-token', help='Github token to use')
 @click.option('--gh-gist-id', help='Gist id to update')
-@click.option('--gh-token-file', help='Github token file')
-@click.option('--gh-gist-id-file', help='Gist id file')
 @click.option('--gh-gist-file-name', help='Gist file name to update')
-@click.option('--public-key-path', default=os.path.expanduser('~/.ssh/id_rsa.pub'), type=click.Path(exists=True), help='Public key to encrypt the message')
-@click.option('--cache-file', default='.localcache', help='The cache file')
-def announce(gh_token, gh_gist_id, gh_token_file, gh_gist_id_file, gh_gist_file_name, public_key_path, cache_file):
+@click.option('--public-key-path', help='Public key to encrypt the message')
+def announce(config_path, gh_token, gh_gist_id, gh_gist_file_name, public_key_path):
+    config = {}
+    if os.path.exists(config_path):
+        config = json.load(open(config_path))
+    elif os.path.exists('config.json'):
+        config = json.load(open('config.json'))
+    cache_file = config.setdefault('cache_file', '.localcache')
+
     if not gh_token:
-        if not gh_token_file:
+        gh_token = config.get('gh_token')
+        if not gh_token:
             print("Need a github token to continue")
             sys.exit(1)
-        else:
-            gh_token = open(gh_token_file).read().strip()
 
     if not gh_gist_id:
-        if not gh_gist_id_file:
+        gh_gist_id = config.get('gh_gist_id')
+        if not gh_gist_id:
             print("Need a github gist id to continue")
             sys.exit(1)
-        else:
-            gh_gist_id = open(gh_gist_id_file).read().strip()
+
+    if not gh_gist_file_name:
+        gh_gist_file_name = config.get('gh_gist_file_name')
+        if not gh_gist_file_name:
+            print("Need a github gist filename to continue")
+            sys.exit(1)
+
+    if not public_key_path:
+        public_key_path = config.get('public_key_path')
+        if not public_key_path:
+            print("Need a public key path to continue")
+            sys.exit(1)
 
     ips = []
 
@@ -141,21 +156,54 @@ def announce(gh_token, gh_gist_id, gh_token_file, gh_gist_id_file, gh_gist_file_
 
 
 @cli.command()
+@click.option('--config_path', default='/etc/whereareyou/config.json', help='path to the json config file')
 @click.option('--gh-token', help='Github token to use')
 @click.option('--gh-gist-id', help='Gist id to update')
-@click.option('--gh-token-file', help='Github tokn file')
-@click.option('--gh-gist-id-file', help='Gist id file')
 @click.option('--gh-gist-file-name', help='Gist file name to update')
-@click.option('--private-key-path', default=os.path.expanduser('~/.ssh/id_rsa'), type=click.Path(exists=True), help='Public key to encrypt the message')
-def locate(gh_token, gh_gist_id, gh_token_file, gh_gist_id_file, gh_gist_file_name, private_key_path):
+@click.option('--prompt-for-passphrase/--no-prompt-for-passphrase', default=False, help='prompt for a passphrase')
+@click.option('--private-key-path', help='Public key to encrypt the message')
+def locate(config_path, gh_token, gh_gist_id, gh_gist_file_name, prompt_for_passphrase, private_key_path):
+    config = {}
+    if os.path.exists(config_path):
+        config = json.load(open(config_path))
+    # Try a local config if it's there
+    elif os.path.exists('config.json'):
+        config = json.load(open('config.json'))
+
+    if not gh_token:
+        gh_token = config.get('gh_token')
+        if not gh_token:
+            print("Need a github token to continue")
+            sys.exit(1)
+
+    if not gh_gist_id:
+        gh_gist_id = config.get('gh_gist_id')
+        if not gh_gist_id:
+            print("Need a github gist id to continue")
+            sys.exit(1)
+
+    if not gh_gist_file_name:
+        gh_gist_file_name = config.get('gh_gist_file_name')
+        if not gh_gist_file_name:
+            print("Need a github gist filename to continue")
+            sys.exit(1)
+
+    if not private_key_path:
+        private_key_path = config.get('private_key_path')
+        if not private_key_path:
+            print("Need a public key path to continue")
+            sys.exit(1)
+
     g = Github(gh_token)
 
     gist = g.get_gist(gh_gist_id)
 
     gist_file = gist.files[gh_gist_file_name]
 
-    private_key_password = str.encode(
-        getpass.getpass("Private key passphrase:"))
+    private_key_password = None
+    if prompt_for_passphrase:
+        private_key_password = str.encode(
+            getpass.getpass("Private key passphrase:"))
 
     private_key = serialization.load_pem_private_key(
         str.encode(open(private_key_path).read()),
